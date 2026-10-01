@@ -1,0 +1,67 @@
+models:
+  - name: fct_creator_daily_revenue
+    description: >
+      One row per creator per day (Europe/Amsterdam). Net revenue = successful
+      payments minus refunds on those payments minus the platform fee.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [creator_id, revenue_date]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "net_revenue_eur <= gross_eur"
+    columns:
+      - name: creator_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_creators')
+                field: creator_id
+      - name: revenue_date
+        data_tests: [not_null]
+      - name: net_revenue_eur
+        description: Gross minus refunds minus platform fee, in EUR.
+
+  - name: dim_creators
+    description: One row per creator, including those without revenue.
+    columns:
+      - name: creator_id
+        data_tests: [unique, not_null]
+      - name: country_code
+        data_tests: [not_null]
+      - name: plan
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['basic', 'pro']
+#A data test inspects the real data coming out of your model: "are there duplicates in today's table?" It is like inspecting products as they come off an assembly line.
+#A unit test checks the logic itself, using a few fake rows where you already know the right answer. It is like testing a calculator by typing 2 + 2 and checking that it shows 4. If your SQL subtracted the fee twice, every data test could still pass, because the result would be a plausible number. Only a unit test catches it, because it knows the correct answer.
+unit_tests:
+  - name: net_revenue_subtracts_refunds_and_fees     # a name that says what is checked
+    model: fct_creator_daily_revenue                  # the model whose SQL is tested
+    given:                                            # fake inputs
+      - input: ref('int_payments_with_refunds')       # replace this ref with...
+        format: sql
+        rows: |                                       # ...these two rows
+          select 'a' as payment_id, 1 as creator_id, date '2026-09-01' as payment_date,
+                 numeric '10' as gross_eur, numeric '5' as refunded_eur, numeric '1' as platform_fee_eur
+          union all
+          select 'b', 1, date '2026-09-01', numeric '20', numeric '0', numeric '2'
+    expect:                                           # the answer you know is correct
+      rows:
+        - {creator_id: 1, revenue_date: 2026-09-01, net_revenue_eur: 22}
+
+# The usual input format is the short {column: value} style, as in expect.
+# You need format: sql here only because the input model is ephemeral.
+# And dbt build runs unit tests automatically before building the model, 
+# so broken logic never reaches the table. Unit tests are worth writing for tricky logic,
+# such as case when rules, date handling and window functions. Not for every simple select.
+
+
+
+# EXECUTION LOGIC OF DBT BUILD
+# 1. unit tests        check the logic on fake rows      (fail → model is not built)
+# 2. build the model   create or replace the view/table
+# 3. data tests        check the real result             (fail → downstream models are skipped)
+# 4. downstream models
