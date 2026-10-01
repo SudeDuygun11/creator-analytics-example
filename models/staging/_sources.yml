@@ -1,0 +1,21 @@
+#telling dbt three sources exist so instead of hardcoding them like raw.payments, other files can refer to it as {{source()}}
+sources:
+  - name: creator-platform
+    description: Raw tables uploaded from the creator platform. Loaded as-is, not modified by dbt.
+    schema: raw
+    tables:
+      - name: creators
+        description: One row per creator account.
+
+      - name: refunds
+        description: One row per refund. A payment can in principle have several.
+
+      - name: payments
+        description: >
+          One row per payment attempt, successful or failed. May contain
+          duplicate rows caused by at-least-once delivery.
+        config:
+          loaded_at_field: _loaded_at
+          freshness:
+            warn_after: {count: 24, period: hour}
+            error_after: {count: 48, period: hour}
