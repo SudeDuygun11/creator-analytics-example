@@ -1,0 +1,14 @@
+models:
+  - name: rpt_creator_daily_revenue
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [creator_id, revenue_date]
+  - name: rpt_creators
+    columns:
+      - name: creator_id
+        data_tests: [unique, not_null]
+  - name: rpt_creators_monthly
+    columns:
+      - name: month
+        data_tests: [unique, not_null]

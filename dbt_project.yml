@@ -27,4 +27,6 @@ models:
     marts:
       +materialized: table       # what Looker reads, so stored physically
       +schema: marts             # lands in dbt_sduygun_marts during development
-    
+    reporting:
+      +materialized: view        # cheap, and date-based flags use today's date at query time
+      +schema: reporting         # lands in dbt_sduygun_reporting during development
